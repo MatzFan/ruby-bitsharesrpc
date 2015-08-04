@@ -20,8 +20,8 @@ class BitsharesRPC
   def unlock(opts = {})
     defaults = {timeout: 1776, wallet: 'default'}
     args = opts.merge defaults
-    params = [args[:timeout], @pwd, 'o', args[:wallet]] # 'o' is 'open'
-    rpcexec(PAYLOAD.merge({method: 'wallet_unlock', params: params}).to_json)
+    self.wallet_open args[:wallet]
+    self.wallet_unlock(args[:timeout], @pwd)
   end
 
   private
@@ -43,8 +43,9 @@ class BitsharesRPC
   def method_missing(name, *args)
     post_body = PAYLOAD.merge({method: name, params: args}).to_json
     data = JSON.parse(rpcexec post_body)
-    raise JSONRPCError, "Invalid command: #{name}" if data['error']
-    data['result']
+    error, result = data['error'], data['result']
+    raise JSONRPCError, "Client says: #{error['message']}" if error
+    result
   end
 
   def rpcexec(payload)
@@ -54,7 +55,7 @@ class BitsharesRPC
     req.content_type = 'application/json'
     req.body = payload
     resp = http.request(req)
-    raise UnauthorizedError, "#{@user}#{@pwd}" if resp.class == Net::HTTPUnauthorized
+    raise UnauthorizedError, 'Bad creds' if resp.class == Net::HTTPUnauthorized
     resp.body
   end
 

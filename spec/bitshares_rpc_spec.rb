@@ -33,7 +33,7 @@ describe BitsharesRPC do
     end
   end
 
-  context '#unlock' do
+  context '#unlock (shortcut for >wallet_open >wallet_unlock)' do
     it 'with no args unlocks "default" wallet for default time' do
       c = client
       c.unlock
@@ -65,14 +65,14 @@ describe BitsharesRPC do
       expect(->{client.get_info}).to raise_error BitsharesRPC::UnauthorizedError
     end
 
-    it 'with valid credentials returns a Hash of JSON data ' do
+    it 'with valid credentials returns a Hash of JSON data' do
       expect(client.get_info.class).to eq Hash
     end
   end
 
   context 'invalid client commands' do
-    it 'raise JSONRPCError "Invalid command: <command name>" ' do
-      expect(->{client.not_a_cmd}).to raise_error(BitsharesRPC::JSONRPCError, 'Invalid command: not_a_cmd')
+    it 'raise JSONRPCError "Client says: Invalid command: <command name>"' do
+      expect(->{client.not_a_cmd}).to raise_error(BitsharesRPC::JSONRPCError, 'Client says: Invalid Method: not_a_cmd')
     end
   end
 
