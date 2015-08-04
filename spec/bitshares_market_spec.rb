@@ -2,7 +2,17 @@ require 'bitshares_market'
 
 describe BitsharesMarket do
 
-  let(:market) { BitsharesMarket.new }
+  let(:market) { BitsharesMarket.new('BTC', 'BTS') }
+
+  context '#new(quote, base)' do
+    it 'raises AssetError "No such asset: <symbol(s)>" if an invalid asset symbol is used' do
+      expect(->{BitsharesMarket.new('BTC', 'GARBAGE')}).to raise_error BitsharesMarket::AssetError, 'No such asset: GARBAGE'
+    end
+
+    it 'instantiates an instance of the class with valid asset symbols (case insensitive)' do
+      expect(BitsharesMarket.new('BTC', 'btS').class).to eq BitsharesMarket
+    end
+  end
 
   context '#client' do
     it 'returns a BitsharesRPC instance' do
@@ -10,39 +20,50 @@ describe BitsharesMarket do
     end
   end
 
-  context '#get_asset_id(symbol)' do
-    it 'returns the id of the asset provided as parameter' do
-      expect(market.get_asset_id('BTS')).to eq 0
-    end
-
-    it 'raises BitsharesMarket "No such asset: <symbol>" for an invalid asset symbol' do
-      expect(->{market.get_asset_id('no_such_asset')}).to raise_error BitsharesMarket::AssetError, 'No such asset: no_such_asset'
+  context '#center_price' do
+    it 'returns the center price' do
+      expect(market.center_price).to eq 0
     end
   end
 
-  context '#get_precision(symbol)' do
-    it 'returns the precision of the asset provided as parameter' do
-      expect(market.get_precision('BITUSD')).to eq 100
+  context '#feeds_median(asset)' do
+    it 'returns the median price of the asset\'s relative to BTS from price feeds' do
+      median = market.feeds_median('BTC')
+      expect(median > 0 && median < 1).to be_truthy
     end
   end
 
-  context '#get_center_price(quote, base)' do
-    it 'returns the mid price of the quote relative to the base' do
-      expect(market.get_center_price('BTC', 'BTS')).to eq 0.0000000000
+  context '#last_fill' do
+    it 'returns -1 if there is no order history' do
+      allow(market).to receive(:order_hist).and_return []
+      last_fill = market.last_fill
+      expect(last_fill).to eq -1
+    end
+
+    it 'returns price of the last filled order' do
+      last_fill = market.last_fill
+      expect(last_fill > 0 && last_fill < 1).to be_truthy
     end
   end
 
-  context '#get_lowest_ask(asset1, asset2)' do
-    it 'returns lowest ask price of the quote relative to the base from order book' do
-      ask_prices = market.send(:asks, 'BTC', 'BTS').map { |p| p['market_index']['order_price']['ratio'].to_f }.sort
-      expect(market.get_lowest_ask('BTC', 'BTS')).to eq ask_prices.first
+  context '#mid_price' do
+    it 'returns the mid price' do
+      mid = market.mid_price
+      expect(mid > market.highest_bid && mid < market.lowest_ask).to be_truthy
     end
   end
 
-  context '#get_highest_bid(asset1, asset2)' do
-    it 'returns highest bid price of the quote relative to the base from order book' do
-      bid_prices = market.send(:bids, 'BTC', 'BTS').map { |p| p['market_index']['order_price']['ratio'].to_f }.sort
-      expect(market.get_highest_bid('BTC', 'BTS')).to eq bid_prices.last
+  context '#lowest_ask' do
+    it 'returns lowest ask price from order book' do
+      ask_prices = market.send(:asks).map { |p| p['market_index']['order_price']['ratio'].to_f }.sort
+      expect(market.lowest_ask).to eq ask_prices.first * 0.001
+    end
+  end
+
+  context '#highest_bid' do
+    it 'returns highest bid price from order book' do
+      bid_prices = market.send(:bids).map { |p| p['market_index']['order_price']['ratio'].to_f }.sort
+      expect(market.highest_bid).to eq bid_prices.last * 0.001
     end
   end
 

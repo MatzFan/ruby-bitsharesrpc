@@ -2,40 +2,73 @@ require 'bitshares_rpc'
 
 class BitsharesMarket
 
-  ASK_ORDER_TYPES = %w(ask_order cover_order)
-  BID_ORDER_TYPES = %w(bid_order)
+  SELL_ORDER_TYPES = %w(ask_order cover_order)
+  BUY_ORDER_TYPES = %w(bid_order)
 
   attr_reader :client
 
-  def initialize
+  def initialize(quote, base)
     @client = BitsharesRPC.new
+    @quote_hash, @base_hash = *get_assets(quote.upcase, base.upcase)
+    @multiplier = multiplier
+    @quote = @quote_hash['symbol']
+    @base = @base_hash['symbol']
+    @order_book = order_book
   end
 
-  def get_asset_id(sym)
-    get_asset(sym)['id']
+  def center_price
+    market_status['center_price']['ratio'].to_f
   end
 
-  def get_precision(sym)
-    get_asset(sym)['precision']
+  def feeds_median(asset)
+    feeds(asset).last['median_price'].to_f
   end
 
-  def get_center_price(quote, base)
-    [quote, base].each { |sym| get_asset(sym) }
-    client.blockchain_market_status(quote, base)['center_price']['ratio'].to_f
+  def last_fill
+    return -1 if order_hist.empty?
+    order_hist.map.first['bid_index']['order_price']['ratio'].to_f * multiplier
   end
 
-  def get_lowest_ask(a1, a2)
-    asks(a1, a2).first['market_index']['order_price']['ratio'].to_f
+  def mid_price
+    (highest_bid + lowest_ask) / 2
   end
 
-  def get_highest_bid(a1, a2)
-    bids(a1, a2).first['market_index']['order_price']['ratio'].to_f
+  def lowest_ask
+    price asks.first
+  end
+
+  def highest_bid
+    price bids.first
   end
 
   private
 
+  def get_assets(quote, base)
+    [quote, base].map { |sym| get_asset sym }
+  end
+
   def get_asset(s)
     client.blockchain_get_asset(s) || (raise AssetError, "No such asset: #{s}")
+  end
+
+  def multiplier
+    @base_hash['precision'].to_f / @quote_hash['precision']
+  end
+
+  def market_status
+    client.blockchain_market_status(@quote, @base)
+  end
+
+  def feeds(asset)
+    client.blockchain_get_feeds_for_asset(asset)
+  end
+
+  def order_book
+    client.blockchain_market_order_book(@quote, @base)
+  end
+
+  def order_hist
+    client.blockchain_market_order_history(@quote, @base)
   end
 
   def check_new_order_type(order_list, order_types)
@@ -44,22 +77,30 @@ class BitsharesMarket
     order_list
   end
 
-  def bids(a1, a2)
-    bids = client.blockchain_market_order_book(a1, a2).first
-    check_new_order_type(bids, BID_ORDER_TYPES)
+  def buy_orders
+    bids = @order_book.first
+    check_new_order_type(bids, BUY_ORDER_TYPES)
   end
 
-  def all_asks(a1, a2) # includes 'ask_type' and 'cover_type'
-    asks = client.blockchain_market_order_book(a1, a2).last
-    check_new_order_type(asks, ASK_ORDER_TYPES)
+  def bids
+    buy_orders.select { |p| p['type'] == 'bid_order' }
   end
 
-  def asks(a1, a2)
-    all_asks(a1, a2).select { |p| p['type'] == 'ask_order' }
+  def sell_orders # includes 'ask_type' and 'cover_type'
+    asks = @order_book.last
+    check_new_order_type(asks, SELL_ORDER_TYPES)
   end
 
-  def covers(a1, a2)
-    all_asks(a1, a2).select { |p| p['type'] == 'cover_order' }
+  def asks
+    sell_orders.select { |p| p['type'] == 'ask_order' }
+  end
+
+  def covers
+    sell_orders.select { |p| p['type'] == 'cover_order' }
+  end
+
+  def price(order) # CARE: preserve float precision with * NOT /
+    order['market_index']['order_price']['ratio'].to_f * @multiplier
   end
 
   class AssetError < RuntimeError; end
