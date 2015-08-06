@@ -1,22 +1,34 @@
-require 'bitshares_market'
+require 'market'
 
-describe BitsharesMarket do
+describe BitShares::Market do
 
-  let(:market) { BitsharesMarket.new('BTC', 'BTS') }
+  let(:market) { BitShares::Market.new('BTC', 'BTS') }
 
   context '#new(quote, base)' do
     it 'raises AssetError "No such asset: <symbol(s)>" if an invalid asset symbol is used' do
-      expect(->{BitsharesMarket.new('BTC', 'GARBAGE')}).to raise_error BitsharesMarket::AssetError, 'No such asset: GARBAGE'
+      expect(->{BitShares::Market.new('BTC', 'GARBAGE')}).to raise_error BitShares::Market::AssetError, 'No such asset: GARBAGE'
     end
 
     it 'instantiates an instance of the class with valid asset symbols (case insensitive)' do
-      expect(BitsharesMarket.new('BTC', 'btS').class).to eq BitsharesMarket
+      expect(BitShares::Market.new('BTC', 'btS').class).to eq BitShares::Market
     end
   end
 
   context '#client' do
-    it 'returns a BitsharesRPC instance' do
-      expect(market.client.class.to_s).to eq 'BitsharesRPC'
+    it 'returns a BitsharesClient instance' do
+      expect(market.client.class).to eq BitShares::Client
+    end
+  end
+
+  context '#quote' do
+    it 'returns the quote asset symbol' do
+      expect(market.quote).to eq 'BTC'
+    end
+  end
+
+  context '#base' do
+    it 'returns the base asset symbol' do
+      expect(market.base).to eq 'BTS'
     end
   end
 

@@ -1,19 +1,37 @@
-require 'bitshares_rpc'
+require 'client'
 
 abort 'bitshares client not running!' if `pgrep bitshares_clien`.empty? # 15 ch
 
-describe BitsharesRPC do
+describe BitShares::Client do
 
-  let(:client) { BitsharesRPC.new }
+  let(:client) { BitShares::Client.new }
 
   context '#new' do
     it 'raises BitsharesError "Server not running!" if the server isn\'t running' do
       allow(client).to receive(:rpc_ports).and_return []
-      expect(->{client.send :bitshares_running?}).to raise_error BitsharesRPC::BitsharesError, 'Server not running!'
+      expect(->{client.send :bitshares_running?}).to raise_error BitShares::Client::BitsharesError, 'Server not running!'
     end
 
     it 'instantiates an instance of the class if the bitshares server is running' do
-      expect(client.class).to eq BitsharesRPC
+      expect(client.class).to eq BitShares::Client
+    end
+  end
+
+  context '#usr' do
+    it 'returns the account username' do
+      expect(client.usr).to eq ENV['BITSHARES_USER']
+    end
+  end
+
+  context '#wallet' do
+    it 'returns nil if no wallet is open' do
+      expect(client.wallet).to be_nil
+    end
+
+    it 'returns wallet name if a wallet is open and unlocked' do
+      c = client
+      c.unlock
+      expect(c.wallet).to eq 'default'
     end
   end
 
@@ -33,7 +51,7 @@ describe BitsharesRPC do
     end
   end
 
-  context '#unlock (shortcut for >wallet_open >wallet_unlock)' do
+  context '#unlock([:wallet][:timeout]) (shortcut for >wallet_open >wallet_unlock)' do
     it 'with no args unlocks "default" wallet for default time' do
       c = client
       c.unlock
@@ -57,12 +75,12 @@ describe BitsharesRPC do
   context 'valid client commands' do
     it 'raises UnauthorizedError with incorrect username' do
       stub_const('ENV', ENV.to_hash.merge('BITSHARES_USER' => 'wrong_password'))
-      expect(->{client.get_info}).to raise_error BitsharesRPC::UnauthorizedError
+      expect(->{client.get_info}).to raise_error BitShares::Client::UnauthorizedError
     end
 
     it 'raise UnauthorizedError with incorrect password' do
       stub_const('ENV', ENV.to_hash.merge('BITSHARES_PWD' => 'wrong_password'))
-      expect(->{client.get_info}).to raise_error BitsharesRPC::UnauthorizedError
+      expect(->{client.get_info}).to raise_error BitShares::Client::UnauthorizedError
     end
 
     it 'with valid credentials returns a Hash of JSON data' do
@@ -72,7 +90,7 @@ describe BitsharesRPC do
 
   context 'invalid client commands' do
     it 'raise JSONRPCError "Client says: Invalid command: <command name>"' do
-      expect(->{client.not_a_cmd}).to raise_error(BitsharesRPC::JSONRPCError, 'Client says: Invalid Method: not_a_cmd')
+      expect(->{client.not_a_cmd}).to raise_error(BitShares::Client::JSONRPCError, 'Client says: Invalid Method: not_a_cmd')
     end
   end
 
